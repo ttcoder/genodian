@@ -1,0 +1,9 @@
+	Test, one-two one-two
+
+Hello, world. This is my first attempt at writing in GOSH, _and_ creating a repo with git instead of my usual SCM; so I'd better do a "test drive" blurb, before sending my next posts, including those:
+
+# GUI basics: logging my thoughts as I go through the nooks and crannies of the Haiku widgets, and convert libbe.so to write into a Genode-Nitpicker framebuffer instead of sending 'RPC'-like commands to the app_server.
+
+# Humble beginnings: Screenshots. Of a [https://www.haiku-os.org/docs/api/classBCheckBox.html - BCheckbox]. Gotta start somewhere, right ?
+
+Will also migrate my previous posts over time. Hoping to see more micro-blogs pop up here -- we do need the information flow.
