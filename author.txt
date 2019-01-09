@@ -1,0 +1,1 @@
+I write radio automation software for a living. Very interested in Genode, and now trying to port CommandCenter (and companion apps) to Genode.
