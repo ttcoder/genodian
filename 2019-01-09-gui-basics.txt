@@ -1,7 +1,8 @@
-		GUI basics
+GUI basics
+##########
 
 
-As mentionned on the mailing-list, [http://tunetrackersystems.com - TTS] develops radio automation software for [https://haiku-os.org - Haiku]. We are in need of a second, stable platform. I thus intend to port tunetracker to Genode and yet preserve much of its source code and its use of the Haiku APIs -- meaning I've embarked on e.g. writing a libbe.so that makes calls to Nitpicker and an RM-mapped framebuffer instead of sending RPC-like commands to an app_server as is the case in Haiku.
+As mentionned on the mailing-list, [http://tunetrackersystems.com - TTS] develops radio automation software for [https://haiku-os.org - Haiku]. We are in need of a second, stable platform. I thus intend to port our applications to Genode and yet preserve much of its source code and its use of the Haiku APIs -- meaning I've embarked on e.g. writing a libbe.so that makes calls to Nitpicker and an RM-mapped framebuffer instead of sending RPC-like commands to an app_server as is the case in Haiku.
 
 At the same time, if Genode is to become a long term second (or even primary) home for us, it would be nice to have native Genode APIs for writing applications. Ideally, the 'legacy' Haiku library would remain in place over time, benefitting both the Genode and the Haiku communities, but a native toolkit would grow side by side with it, from its current nascent state to a full-blown GUI framework.
 
