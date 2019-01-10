@@ -1,0 +1,61 @@
+
+
+
+
+logging my thoughts as I go through the nooks and crannies of the Haiku widget
+and convert libbe.so to write into a Genode-Nitpicker framebuffer instead of sending 'RPC'-like commands to the app_server.
+
+Rectangles vs. arbitrary shapes
+
+Overlapping vs. not overlapping
+
+
+
+
+
+		GUI basics
+
+I'll probably run a series about what is called the "interface kit" in Haiku: the set of classes used for managing windows, drawing buttons and menus and the like. Now that I'm going through all that stuff, reviewing dozens of files from the haiku source tree, adapting them to Genode and Nitpicker, is the right time to write down notes. Then I can look back at them in a few months if/when a discussion starts about developing the (still fledgling) Genode GUI toolkit.
+
+With no further ado:
+
+At an (almost) completely basic level, computer interfaces start from the "WIMP" paradigm: windows, icons, mouse pointer.
+
+If windows are a way to divide up a screen/framebuffer, "widgets" are a way to divide the inside of each window.
+
+In the Haiku API, windows and their widgets are known as BWindows and BViews. I'll tend to use that vocable as this is what I'm used to, though readers may want to translate views to "widgets" on the fly -- especially given that Nitpicker has a peculiar use for that word (see below).
+
+Tree
+====
+
+The views are listed as an arborescence. This is probably a no brainer. Moving on.
+
+Non-overlapping squares
+=======================
+
+BWindows and BViews are of a *square* shape -- with the exception of the famous "yellow tab" on windows. That makes it easier to calculate clipping, mouse interaction, drawing and so on.
+
+However I noticed in the nitpicker test.cc some support for (alpha channel based?) arbitrary shapes, at least in windows (seemingly called "view/handles"). That got me started thinking... It might make sense to be ambitious and implement arbitrary-shape views and windows from day one, or to make provisions for future implementation thereof.
+
+BWindows are allowed to *overlap*, whereas BViews are not. (That no-overlap rule is for sibling views of course, not parent-children views, for which by definition the child bounds are wholly included in the parent clipping/bounds). It allows for optimization/ease of coding.
+
+Here also, Genode could make provisions for being more ambitious. Actually this raises intriguing prospects: for certain application types like document/word writers, grahpical arrangement of e.g. UML graphs, it would be nice if their main document/body could be implemented with BViews. But since views cannot overlap it's impossible to use them for such, and developers have to develop a "canvas" style big view, and re-invent the wheel. Additionally, this would open the door to blurring the distinction between a BView and a BWindow, or even break the wall altogether: if a "view" was actually just a window that happens to be attached to another window, one could "tear off" any view/sub-window (which programmatically allows it) from its parent and have ad-hoc "tool bars" and such.
+
+Again I didn't really think of implications, maybe it would be too hairy to implement. Or it would lead to performance degradation, slow redraws. It probably makes sense to favor the tried and true (and faster to implement) route.
+
+BView hierarchy
+===============
+
+The BView class can be subclassed to override its Draw() hook (since the base implementation does nothing).
+
+That will be the topic of the next entries in this series -- how haiku factors out common code, organising subclasses of BView as BControl, BButton, BCheckBox and so on.
+
+The famous buzz word of old "pervasive multi-threading" will also be addressed, mentionning about each BWindow running in its own thread.
+
+Will also mention some early decision making under way here for my "port", some of it probably naive (using the BWindow as the holder of a framebuffer capability shared by all the windows' views; implementing BMessage with RPC to a common "syscall server").
+
+Finally, as the implementation (and API?) "imperfections" (to put it diplomatically!) are increasingly visible, I'll mention them and some hints as to how Genode could avoid falling for the same pitfalls.
+
+
+
+
