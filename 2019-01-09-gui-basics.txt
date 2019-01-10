@@ -1,61 +1,108 @@
-
-
-
-
-logging my thoughts as I go through the nooks and crannies of the Haiku widget
-and convert libbe.so to write into a Genode-Nitpicker framebuffer instead of sending 'RPC'-like commands to the app_server.
-
-Rectangles vs. arbitrary shapes
-
-Overlapping vs. not overlapping
-
-
-
-
-
 		GUI basics
 
-I'll probably run a series about what is called the "interface kit" in Haiku: the set of classes used for managing windows, drawing buttons and menus and the like. Now that I'm going through all that stuff, reviewing dozens of files from the haiku source tree, adapting them to Genode and Nitpicker, is the right time to write down notes. Then I can look back at them in a few months if/when a discussion starts about developing the (still fledgling) Genode GUI toolkit.
+
+As mentionned on the mailing-list, [http://tunetrackersystems.com - TTS] develops radio automation software for [https://haiku-os.org - Haiku]. We are in need of a second, stable platform. I thus intend to port tunetracker to Genode and yet preserve much of its source code and its use of the Haiku APIs -- meaning I've embarked on e.g. writing a libbe.so that makes calls to Nitpicker and an RM-mapped framebuffer instead of sending RPC-like commands to an app_server as is the case in Haiku.
+
+At the same time, if Genode is to become a long term second (or even primary) home for us, it would be nice to have native Genode APIs for writing applications. Ideally, the 'legacy' Haiku library would remain in place over time, benefitting both the Genode and the Haiku communities, but a native toolkit would grow side by side with it, from its current nascent state to a full-blown GUI framework.
+
+The Genode community has been very welcoming, and supportive of the idea of exploring ideas for creating a GUI toolkit, even if I can only provide input based on my limited Haiku experience. So I'll try to run a series about the "Interface kit": the haiku set of classes used for managing windows, drawing buttons, menus and the like. Now that I'm going through all the nooks and crannies, reviewing .cpp files, adapting them to Genode and Nitpicker, revisiting the "basics" so to speak, is the right time to write down notes. Then I can look back at them in a few months if/when a discussion starts about developing the Genode side of the equation.
 
 With no further ado:
 
-At an (almost) completely basic level, computer interfaces start from the "WIMP" paradigm: windows, icons, mouse pointer.
 
-If windows are a way to divide up a screen/framebuffer, "widgets" are a way to divide the inside of each window.
+Interface basics
+================
 
-In the Haiku API, windows and their widgets are known as BWindows and BViews. I'll tend to use that vocable as this is what I'm used to, though readers may want to translate views to "widgets" on the fly -- especially given that Nitpicker has a peculiar use for that word (see below).
+At an (almost) completely basic level, computer interfaces stem from the "WIMP" paradigm: windows, icons, mouse pointer.
 
-Tree
-====
+The screen/framebuffer is divided in "windows", and windows are further divided into "widgets"; clickable widgets are often called "controls".
 
-The views are listed as an arborescence. This is probably a no brainer. Moving on.
+In the Haiku API, windows and their widgets are known as BWindows and BViews (and controls as BControls). I'll tend to use that vocable as this is what I'm used to, though readers may want to translate views to "widgets" on the fly -- especially given that Nitpicker has differences in terminology (see below).
 
-Non-overlapping squares
+
+Tree structure
+==============
+
+BViews are structured as an arborescence (tree): any view can have any number of children. Children are painted on 'top' of their parent. Are there implementations that deviate from this?. Not aware of any, assuming this is a no brainer. Moving on.
+
+
+Rectangles vs. arbitrary shapes
+===============================
+
+Going back quite a few years, several operating systems have become more shape-flexible, going beyond plain rectangles, fueling the discussion in the Haiku community as well.
+
+By contrast, BViews and BWindows are strictly rectangular (with the one exception of the famous "yellow tab" sitting on top of BWindows).
+
+Performance-wise, that design choice makes it easier to calculate clipping, mouse interaction, drawing and so on.
+
+However I noticed in test/nitpicker/test.cc some support for (alpha channel based?) arbitrary shapes, at least in windows (seemingly called "view/handles"). That got me into thinking... It might make sense to be ambitious and implement arbitrary-shape views and windows from day one, or to make provisions for future implementation thereof? If it proves too costly in terms of development time, performance, or bugs, the implementation would fall back to rectangles.
+
+As a concrete example -- I've grown very fond of "pie menus" during the last year. I add them everywhere in my apps now. Implementing pie (radial) menus with rectangular windows means "faking" transparency by taking a 'screenshot' of the underlying screen area so that the menu looks like a disk. A real pain in the neck.
+
+
+Overlapping vs. not overlapping
+===============================
+
+Windows can overlap... Whereas views do not -- meaning, *sibling* views of course, by opposed to parent-children for which by definition the child bounds are wholly included within their parent's clipping/bounds. Windows can be arranged any way the user wants (though tiling has become a "thing" the last few years), whereas views must not intersect. It's almost considered a fact of life.
+
+But here again, the Genode code got me thinking. If you look at the Einz/Zwei/Drei windows in test.cc, they are added with create_view(), and 'dockable' to a parent; is that insignificant, or is that a hint that the authors think about generalizing the idea of a view, to encompass windows (and vice versa) ?
+
+Allowing views to behave (e.g. overlap) like windows, and windows to be "dockable" to a parent (like nitpicker/test.cc shows) like views, is intriguing.
+
+If there was just one entity that could do everything, including...
+
+# maintain a Z-order relative to its siblings
+# become "clipped" to a parent, painted strictly within its clipping region, and moving together with the parent when the parent moves
+# or conversely, be a child of the "root" (desktop), like what we currently call a "window" which can be moved anywhere on the framebuffer
+
+If a "view" was actually just a window that happens to be attached to another window, one could "tear off" any view/sub-window (dependant on an enable/disable flag probably) from its parent and have ad-hoc "floating tool bars".
+
+For certain application like document/word writers, graphical arrangement tools that implement interactive construction of e.g. UML graphs, it would be nice if their main document/body could be implemented with BViews. But since views cannot overlap it's impossible to use them for such, and developers have to develop a "canvas" style big view, and re-invent the wheel. Doing away with that would be interesting.
+
+As before, it poses the obvious question about the performance impact though -- and the implementation difficulty.
+
+
+Compositing vs direct
+=====================
+
+I have faint memories of my Amiga 500 using off-screen bitmaps to render each window, and blitting each bitmap to the screen/framebuffer. I forgot about that for a while when using BeOS (and now Haiku) and its "direct" rendering paradigm, which was (I suppose) used industry-wide: when a view is exposed, its Draw() hook must quickly respond on demand, sending instructions on how to paint itself so as to fill the 'void'. If that does not occur quickly enough, there is visible  "tearing", left-over marks from whatever window was moved out of the way to expose the underlying window/view.
+
+This allows for minimum video memory usage and due to the Haiku responsivity, looks close to perfect in general use.
+
+It seems the trend has been (for some years, e.g. Apple's Aqua) towards compositing though, with some sort of return to the off-screen bitmaps technique? I see in Nitpicker code that its handing out framebuffers to each window allows for the nice alpha blending that is seen everywhere in Sculpt. As I'm getting to know Genode I also suspect that the "to each client their own chunk of framebuffer" policy also deives naturally from the Genode philosophy. If Nitpicker is implemented as simply handing out framebuffer chunks, it reduces its TCB, like a micro-kernel leaving it up to the userland to implement complex schemes -- by opposed to the high-coupling approach where Nitpicker would function like the Haiku app_server, which its very complex graphics state and rendering code, spanning dozens of thousands of lines of code.
+
+Performance-wise, the app_server approach boasts of few context switches, since the application's BViews generally 'script' a bunch of drawing primitives together; at some point, Flush() is called to send them all at once to the app_server as a "burst" with one write_port() call, triggering one context-switch/syscall. Then when scheduled, app_server executes the 'script', also during a 'long' time without the need to context-switch.
+
+From what I've seen so far, Nitpicker views separate their actions in two categories, nitpicker-related "geometry", and drawing. The "geometry" changes involve a similar script-then-flush approach, which I understand would involve only one RPC call, during the flush. Geometry changes are small in nature, but nice to see them optimized anyway. As to drawing widgets, it seems pixels are 'bit banged' directly to the (local) framebuffer, which I assume is fastest. The app_server approach makes sense if you have one resource (the screen) that must be shared between lots of clients (BWindows).. But if the 'one' resource is actually parcelled out to individual clients that can run concurrently without stepping on each others toes.. The remaining performance item to watch for would be "blitting": how long does it take for Nitpicker to blit each local framebuffer into the global one. That is (or probably can be) optimized heavily.
+
+It's still early for me using Genode, but so far I haven't seen anything suggesting Nitpicker has noticeable performance issues on modern hardware. Will look some more for sure.
+
+
+Organisational strategy
 =======================
 
-BWindows and BViews are of a *square* shape -- with the exception of the famous "yellow tab" on windows. That makes it easier to calculate clipping, mouse interaction, drawing and so on.
+And now for a remark about coding in general, as it relates to what is called "technical debt".
 
-However I noticed in the nitpicker test.cc some support for (alpha channel based?) arbitrary shapes, at least in windows (seemingly called "view/handles"). That got me started thinking... It might make sense to be ambitious and implement arbitrary-shape views and windows from day one, or to make provisions for future implementation thereof.
+There is a technique that consists of organising classes in "layers" that obey the following rules:
 
-BWindows are allowed to *overlap*, whereas BViews are not. (That no-overlap rule is for sibling views of course, not parent-children views, for which by definition the child bounds are wholly included in the parent clipping/bounds). It allows for optimization/ease of coding.
+# code from one layer may call code from the same layer.
+# code from one layer may call code from any of the layers *below* it.
+# code from one layer may *not* call code from layers above it.
 
-Here also, Genode could make provisions for being more ambitious. Actually this raises intriguing prospects: for certain application types like document/word writers, grahpical arrangement of e.g. UML graphs, it would be nice if their main document/body could be implemented with BViews. But since views cannot overlap it's impossible to use them for such, and developers have to develop a "canvas" style big view, and re-invent the wheel. Additionally, this would open the door to blurring the distinction between a BView and a BWindow, or even break the wall altogether: if a "view" was actually just a window that happens to be attached to another window, one could "tear off" any view/sub-window (which programmatically allows it) from its parent and have ad-hoc "tool bars" and such.
+This has benefits in terms of code maintenance, allowing newcomers to get into the code more easily; and the reduced 'coupling' is just plain generally nice to have. I hear Webkit (the web engine behind Safari? and WebPositive) is organized that way.
 
-Again I didn't really think of implications, maybe it would be too hairy to implement. Or it would lead to performance degradation, slow redraws. It probably makes sense to favor the tried and true (and faster to implement) route.
+It takes time to organize like this, but not doing so just results in postponing consequences, i.e. in accumulating technical debt, it would seem.
 
-BView hierarchy
-===============
+This has become a crucial point as I was digging my way through InterfaceKit classes those last few days. Let's say I succeeded in "porting"/importing BCheckBox and BRadioButton, and want to tackle BColorControl next. Simple, right ? Well no -- that class uses text fields to enter the R/G/B values, which are BTextControls, which is implemented with BTextView, a full blown text engine. That engine itself is a half dozen files, no biggie. However, importing it results in pulling dependancies on the storage kit, app kit, and support kit -- eventually importing the other half of Haiku's libbe.so ("other" because adding BCheckBox in the first place necessitated the first half :-). There are also circular references which I'll spare the readers here.
 
-The BView class can be subclassed to override its Draw() hook (since the base implementation does nothing).
+On the one hand, libbe.so can be said to be tightly integrated, well refactored, and that it's healthy to make use of the code you have, regardless of where it is located. On the other hand, that heavy "coupling" makes it difficult to work with.
 
-That will be the topic of the next entries in this series -- how haiku factors out common code, organising subclasses of BView as BControl, BButton, BCheckBox and so on.
-
-The famous buzz word of old "pervasive multi-threading" will also be addressed, mentionning about each BWindow running in its own thread.
-
-Will also mention some early decision making under way here for my "port", some of it probably naive (using the BWindow as the holder of a framebuffer capability shared by all the windows' views; implementing BMessage with RPC to a common "syscall server").
-
-Finally, as the implementation (and API?) "imperfections" (to put it diplomatically!) are increasingly visible, I'll mention them and some hints as to how Genode could avoid falling for the same pitfalls.
+For Haiku (esp. its libbe.so which encompasses a half dozen Kits) it's probably too late to re-organize it in 'layers'. But Genode probably has a good head start in that direction, and it would be my recommendation to stick to that policy :-)
 
 
+Next
+====
+
+Concrete discussions coming up next, depending on interest/questions: implementation choices in the narrow confines of my project (implementing BViews as users of a Nitpicker_connection/framebuffer hosted in their BWindow looks straight-forward; but what about read_port(), write_port(): use Genode RPC on a "server" component?)... And more generally, what paradigm to use for creating new widgets if the existing ones do not fit your needs (in Haiku, that's done by subclassing BView for "inert" ones, subclassing BControl for "active" ones)... Threading (each BWindow runs in its own thread, contributing to responsiveness and to load balancing a bit.. something to emulate?)... Implementing user interaction with "callbacks" (as in X11 of old, or still done in the WxWidget toolkit) or with polymorphism with 'hooks' (e.g. your BView's MouseDown() hook virtual is called when the mouse button is pressed). Choosing topics will be a challenge in itself.
 
 
