@@ -1,5 +1,5 @@
-GUI basics
-##########
+
+ GUI basics
 
 
 As mentionned on the mailing-list, [http://tunetrackersystems.com - TTS] develops radio automation software for [https://haiku-os.org - Haiku]. We are in need of a second, stable platform. I thus intend to port our applications to Genode and yet preserve much of its source code and its use of the Haiku APIs -- meaning I've embarked on e.g. writing a libbe.so that makes calls to Nitpicker and an RM-mapped framebuffer instead of sending RPC-like commands to an app_server as is the case in Haiku.
@@ -12,7 +12,7 @@ With no further ado:
 
 
 Interface basics
-================
+----------------
 
 At an (almost) completely basic level, computer interfaces stem from the "WIMP" paradigm: windows, icons, mouse pointer.
 
@@ -22,13 +22,13 @@ In the Haiku API, windows and their widgets are known as BWindows and BViews (an
 
 
 Tree structure
-==============
+--------------
 
 BViews are structured as an arborescence (tree): any view can have any number of children. Children are painted on 'top' of their parent. Are there implementations that deviate from this?. Not aware of any, assuming this is a no brainer. Moving on.
 
 
 Rectangles vs. arbitrary shapes
-===============================
+-------------------------------
 
 Going back quite a few years, several operating systems have become more shape-flexible, going beyond plain rectangles, fueling the discussion in the Haiku community as well.
 
@@ -42,7 +42,7 @@ As a concrete example -- I've grown very fond of "pie menus" during the last yea
 
 
 Overlapping vs. not overlapping
-===============================
+-------------------------------
 
 Windows can overlap... Whereas views do not -- meaning, *sibling* views of course, by opposed to parent-children for which by definition the child bounds are wholly included within their parent's clipping/bounds. Windows can be arranged any way the user wants (though tiling has become a "thing" the last few years), whereas views must not intersect. It's almost considered a fact of life.
 
@@ -64,7 +64,7 @@ As before, it poses the obvious question about the performance impact though -- 
 
 
 Compositing vs direct
-=====================
+---------------------
 
 I have faint memories of my Amiga 500 using off-screen bitmaps to render each window, and blitting each bitmap to the screen/framebuffer. I forgot about that for a while when using BeOS (and now Haiku) and its "direct" rendering paradigm, which was (I suppose) used industry-wide: when a view is exposed, its Draw() hook must quickly respond on demand, sending instructions on how to paint itself so as to fill the 'void'. If that does not occur quickly enough, there is visible  "tearing", left-over marks from whatever window was moved out of the way to expose the underlying window/view.
 
@@ -80,7 +80,7 @@ It's still early for me using Genode, but so far I haven't seen anything suggest
 
 
 Organisational strategy
-=======================
+-----------------------
 
 And now for a remark about coding in general, as it relates to what is called "technical debt".
 
@@ -102,7 +102,7 @@ For Haiku (esp. its libbe.so which encompasses a half dozen Kits) it's probably 
 
 
 Next
-====
+----
 
 Concrete discussions coming up next, depending on interest/questions: implementation choices in the narrow confines of my project (implementing BViews as users of a Nitpicker_connection/framebuffer hosted in their BWindow looks straight-forward; but what about read_port(), write_port(): use Genode RPC on a "server" component?)... And more generally, what paradigm to use for creating new widgets if the existing ones do not fit your needs (in Haiku, that's done by subclassing BView for "inert" ones, subclassing BControl for "active" ones)... Threading (each BWindow runs in its own thread, contributing to responsiveness and to load balancing a bit.. something to emulate?)... Implementing user interaction with "callbacks" (as in X11 of old, or still done in the WxWidget toolkit) or with polymorphism with 'hooks' (e.g. your BView's MouseDown() hook virtual is called when the mouse button is pressed). Choosing topics will be a challenge in itself.
 
