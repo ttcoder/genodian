@@ -1,0 +1,116 @@
+      GUI chronicles
+
+My next 'GUI basics' post is delayed by one slot : I have made progress on haiku-on-genode and it's important -- for my sanity if nothing else -- to do a sort of "checkpoint" here first.
+
+Of note -- you, dear reader, have been spared the worst as I almost titled this post "The chronicles of GUI geek"... Then thought better of it.
+
+But first, an improvement in Haiku that will help me in the future -- development is going to be much less spartan:
+
+
+QEMU
+----
+
+Good news travel together indeed -- saw on the HaikuPorts feed this past week that a new version of qemu (package 'qemu-3.1.0-1-x86_64.hpkg' to be exact) was available. Thought what the heck, let's upgrade. If there are regressions I can just invoke "pkgman install <old version>" to restore the previous one in an instant.
+
+Was well inspired to do so -- graphics work now. I used to have to run "qemu -nographics" to avoid a crash when using 2.1; that would give me stdio tracing, which is spartan but better than nothing for debugging some non-visual problems. Now I can actually see the Genode/Nitpicker screen right here in Haiku, instead of always having to run it bare-metal on a test rig. That will do wonders to my workflow.
+
+In case some haiku users follow in my footsteps later, here's a few hints about qemu : it's not all that hard to use it and reap benefits from it. Take it from someone who had never used 'qemu' before getting to know Genode.
+
+I run the following line, adapted from the original one from 'tool/run' :
+
+! qemu-system-x86_64 -no-kvm -display sdl -cpu core2duo \
+!   -usb -device usb-mouse -device usb-kbd -device usb-ehci,id=ehci \
+!   -serial mon:stdio -cdrom var/run/tunetracker.iso -machine q35
+
+The '-device usb-mouse' syntax is used instead of the '-usbdevice mouse' one (from 'tool/run'), otherwise qemu complains:
+
+! qemu-system-x86_64: -usbdevice mouse: '-usbdevice' is deprecated, please use '-device usb-...' instead
+
+Out of curiosity I also tried 'usb-tablet' but that does not work (the pointer is invisible/inactive). Haiku's port of SDL always had trouble with capturing/releasing the mouse pointer anyway. No biggie.
+
+Another nice thing to have to improve the workflow when developing in Haiku is to automatically resize the qemu window to its nominal resolution -- the haiku port of qemu does not do that on its own for some reason; thus, scripting to the rescue:
+
+! hey qemu-system-x86_64 set Frame of Window 0 to 'BRect(100.0, 10.0, 1124.0, 778.0)'
+
+The Pulse app(let) discussed below, is simply invoked like this in my 'tunetracker.run' file:
+
+!	<start name="Pulse">
+!		<resource name="RAM" quantum="10M"/>
+!	</start>
+
+That RAM allotment is probably overly conservative -- could be divided in ten and still be too much; Genode binaries are surprisingly small on disk and small in RAM. And that's coming from someone used to slim BeOS binaries.
+
+As an additional benefit, having qemu work correctly allows me to take proper screenshots now, instead of shooting photographs of the screen with a digital camera. Which brings us to the co-travelling good news:
+
+
+
+Humble beginnings
+-----------------
+
+[image img/20dec19_Pulse-vs-pulse_small 50%]    <a href="https://git.haiku-os.org/haiku/tree/src/apps/pulse">Pulse</a> running thanks to
+  the "haiku-on-genode" library, in Genode 18.11/Nova,
+  emulated by qemu 3.1.0 hosted by Haiku R1/beta1
+  with its own instance of Pulse for comparison. Not earth-shattering,
+  but one has to start somewhere, right ?
+  (<a href="img/20dec19_Pulse-vs-pulse.png">enlarged screenshot</a>)
+
+I had promised myself to post an update as soon as (but no sooner than) Pulse would successfully run and render with 'haiku.lib.so'. Needed validation for the long hours of importing/porting/debugging of those past few weeks. We are there now.
+
+As can be seen above, many shortcuts were taken in some parts of the (fledgling) haiku compatibility layer: clipping is only partially done, some colors are wrong ..etc.
+The [https://www.haiku-os.org/docs/api/classBRadioButton.html - BRadioButton] is about the only one rendering correctly; and even there, the 'FillEllipse()' code is a ten-liner I lifted off from the internet and looks very blocky.
+I'm kinda happy with Pulse though. The text is not centered correctly, but the rest could be make pixel perfect with a bit of effort, it seems.
+Also of note -- no widgets are clickable, they're only rendered: no part of the haiku input_server are done, only aspects of app_server.
+
+No need to further mention some of the awful tech debt I'll have to pay back in the coming days, there's much to be done. But oh boy, do I feel like taking a short break now. On the one hand there's so much left to do; yet it would do no good to be overwhelmed and feel discouraged, coding must go ahead no matter what
+(someone create and market a "KEEP CALM AND CARRY ON CODING" t-shirt!)
+As the saying goes, how do you eat an elephant? One spoon-ful at a time. 
+
+
+A bit of code
+-------------
+
+Here's some of the code used to render the above -- the small top-left window, not the Pulse app of course.
+
+This is not going to win me any hurras from Haiku developers, but might be interesting to Genodians new to Haiku. The intent is to start to lift the veil on that haiku Interface Kit API I keep harping on about. So, provided 'haiku.lib.so' is installed in your build tree, the above "One/Eins" window above can be basically created with this code snippet.
+
+!	BWindow * win1 = new BWindow(
+!		BRect(150, 100, 150+256, 100+256),
+!		"Eins",
+!		B_DOCUMENT_WINDOW,
+!		B_ASYNCHRONOUS_CONTROLS
+!		);
+!	
+!	{
+!		BBox * box = new BBox(BRect(5, 23, 90, 150), "bbox");
+!		box->SetLabel( "A BBox" );
+!		box->SetViewColor( ui_color(B_PANEL_BACKGROUND_COLOR) );
+!		win1->AddChild( box );
+!		
+!		{
+!			BCheckBox * cb = new BCheckBox(
+!				BRect(10,15,100,21), "cbox", "Check me", NULL
+!				);
+!			cb->SetValue( 1 );
+!			box->AddChild( cb );
+!		}
+!	}
+!	
+!	win1->Show();
+
+That is written as old-style BeOS code from the late 1990s and illustrates how it encouraged developers to hardcode widget positions in pixels -- no automatic layout, no font-sensitiveness and so on. Haiku adds (a lot of) layout code, and some developers tend to roll out their own layout library and frameworks. Arguably this all is an important discussion topic for Genode as well in the future (so little time, so many posts to write!).
+
+Compatibility-wise, it's worth mentionning that the "Pulse" source code compiles almost "as-is". About the only deviation from standard BeOS/Haiku code so far is the BApplication ctor -- it must take the Genode environment as a parameter:
+
+!  #ifdef __HAIKU__
+!  	BApplication app( "application/x-vnd.cedricd-GenodeTest" );
+!  #else  // Genode:
+!  	BApplication app( env, "application/x-vnd.cedricd-GenodeTest" );
+!  #endif
+
+So bottom line for this week -- grateful as always for all the hard word done by the Genode team, which is more and more apparent as I dive into the Genode code base; and now I should also think of the Haiku Ports team, for their work on qemu.
+
+Will press on with 'haiku.lib.so', as it should get our company off the hook in the near future. My next hacking work will probably occur around input_server like code, providing inspiration for my next post here. Indeed in Haiku, clicking widgets triggers BMessage sending within the concerned application -- this is the very same object used for IPC (inter process communication) between haiku apps, hence both topics are closely related here.
+
+Hopefully posts like this make people curious about the tech, and potentially interested in working with it; or on it!
+
+
