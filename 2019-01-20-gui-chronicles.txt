@@ -47,12 +47,12 @@ As an additional benefit, having qemu work correctly allows me to take proper sc
 Humble beginnings
 -----------------
 
-[image img/20dec19_Pulse-vs-pulse_small 50%]    <a href="https://git.haiku-os.org/haiku/tree/src/apps/pulse">Pulse</a> running thanks to
+[image 2019-01-20_Pulse-vs-pulse_small 50%]    <a href="https://git.haiku-os.org/haiku/tree/src/apps/pulse">Pulse</a> running thanks to
   the "haiku-on-genode" library, in Genode 18.11/Nova,
   emulated by qemu 3.1.0 hosted by Haiku R1/beta1
   with its own instance of Pulse for comparison. Not earth-shattering,
   but one has to start somewhere, right ?
-  (<a href="img/20dec19_Pulse-vs-pulse.png">enlarged screenshot</a>)
+  (<a href="2019-01-20_Pulse-vs-pulse.png">enlarged screenshot</a>)
 
 I had promised myself to post an update as soon as (but no sooner than) Pulse would successfully run and render with 'haiku.lib.so'. Needed validation for the long hours of importing/porting/debugging of those past few weeks. We are there now.
 
@@ -107,9 +107,9 @@ Compatibility-wise, it's worth mentionning that the "Pulse" source code compiles
 !  	BApplication app( env, "application/x-vnd.cedricd-GenodeTest" );
 !  #endif
 
-So bottom line for this week -- grateful as always for all the hard word done by the Genode team, which is more and more apparent as I dive into the Genode code base; and now I should also think of the Haiku Ports team, for their work on qemu.
+So bottom line for this week -- grateful as always for all the hard word done by the Genode team, which is more and more apparent as I dive into the Genode code base; and now I should also think of the HaikuPorts team, for their work on qemu.
 
-Will press on with 'haiku.lib.so', as it should get our company off the hook in the near future. My next hacking work will probably occur around input_server like code, providing inspiration for my next post here. Indeed in Haiku, clicking widgets triggers BMessage sending within the concerned application -- this is the very same object used for IPC (inter process communication) between haiku apps, hence both topics are closely related here.
+Will press on with 'haiku.lib.so', as it should get our company off the hook in the near future. My next hacking work will probably occur around input_server-like code, providing inspiration for my next post here. Indeed in Haiku, clicking widgets triggers BMessage sending within the concerned application -- this is the very same object used for IPC (inter process communication) between haiku apps, hence both topics are closely related here.
 
 Hopefully posts like this make people curious about the tech, and potentially interested in working with it; or on it!
 
