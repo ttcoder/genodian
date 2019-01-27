@@ -1,0 +1,178 @@
+
+    GUI basics 2: IPC
+
+
+
+This time around let's explore a few inter-related topics:
+* kernel syscalls related to communication ports
+* IPC (inter process communication)
+* clipboard (copy-paste)
+* drag'n'drop
+
+
+Local calls
+-----------
+
+Building on Norman's observation on reddit/r/genode:
+
+! From what you describe in "Compositing vs. direct", but without
+! knowing anything about the BeOS API, it seems like the most
+! straight-forward approach would be to host an "app_server"
+! implementation as an application-local library so that
+! write_port operations become plain function calls. In the
+! presence of multiple applications, each application
+! would have its own app_server.
+
+Work has indeed proceeded that way for implementing drawing primitives, and it works well. The implementation indeed short-circuited the 'write_port' code completely, with BView doing plain (local) function calls to CanvasGenode since calling an API dedicated to IPC (like the port API) is not suitable. To wit:
+
+* the drawing primitives used in applications deal with a locally owned (mapped) virtual framebuffer, so they can and indeed have to, be made locally.
+
+* the 'ports' part though, can be used both for an application's widgets talking to each other, or for an application communicating with another application/server (the [https://www.haiku-os.org/legacy-docs/bebook/TheKernelKit_Ports_Overview.html - Legacy BeBook] has a short introduction). In fact almost all Haiku inter-process commo is implemented with ports.
+
+Interestingly, 'write_port()' thus remain part of the global picture, in other areas: it will likely have to be implemented with intact ("IPC" capable) semantics.
+
+Inter-process calls, inspiration for Genode
+-------------------------------------------
+
+So what are we dealing with here? To be facetious, one could describe ports as a concentrate of all that Genode wants to run away from ;-) -- ports are IDed with global identifiers, any port can be accessed by any app and so on. It's like leaving your house's door open.
+
+Where this whole topic concerns TTS, is that we need to preserve the ability for e.g. [http://tunetrackersystems.com/lightning-request-finder.html - Lightning] to send a newly created playlist to CommandCenter; and yet our policy is to keep both of them as separate app 'teams' (aka 'components' in Genode parlance) in separate address spaces (aka 'Protected Domains') rather than have one behemoth user-facing application that handles everything.
+
+Which means I'll probably implement Haiku kernel syscalls as some sort of "server" Genode component in haiku-on-genode. But before looking at h-o-g, or at future inspiration for growth of Genode's features, let's first backtrack a bit and look atdifferences between Haiku and Genode.
+
+Genode's components are sandboxed from each other, except by exchanging capabilities, with one component publishing a service and another requesting a session/connection to it (stop me if I'm wrong). One could imagine a many-to-many communication scheme... But it will probably pay off to stick to a centralized, hub-and-spokes scheme: so then there must be a third party, a "server" which handles drag'n'drop, or a clipboard cut/paste event, or one app programmatically "scripting" another app. I'm tempted to implement that/these server(s) with simple RPC calls pretty much like the 'repos/hello_tutorial' project does. Though I'm not clear on whether to use RPC "raw" like done in hello, or to use a higher level abstration layer (reports?).
+
+Intuitively (naively?) I would implement e.g.
+
+!  port_id create_port( int32 capacity, const char * name )
+
+and
+
+!  status_t delete_port( port_id port );
+
+As simple RPC calls made from applications, to the "kernel" server. RPC calls guarantee (IIUC) thread safety and atomicity on the server side. Though they must return quickly in a mono-threaded server, whereas a naive implementation of those of the calls which are supposed to block on the client side, would entail that the server thread blocks too, so as not to return before having material to return... Exhibit A: 'read_port()' -- the program flow only returns control to the application once there is actually a "message" to retrieve from the port queue (a FIFO). So an additional mechanism will be needed for that part (scheduling aspect) of the call semantics, but the other part (data exchange and mutation aspect) will seemingly be very easy.
+
+Back to drag'n'drop and the rest in Genode's future: Genode could do something a little like the haiku app_server, by "serving" clipboard calls and drag'n'drop in Nitpicker... Or, I imagine, in a variant of it (like 'wm') that exposes more features at the expense of higher complexity and larger Trusted Computing Base, and is thus an option to choose from rather than forced into all use-cases.
+
+Indeed in Haiku, a 10'000 feet survey of IPC use could look like this:
+
+* drag'n'drop is handled by 'app_server', just like it handles drawing primitives (unlike keyboard/mouse events which are handled mostly by 'input_server').
+* the 'BClipboard' class relies on a server named 'registrar'.
+* requesting the list of apps, or launching a new app, is most often done with the 'BRoster' class, which also relies on 'registrar'.
+* playback of audio buffers is done through the 'media_server', with the 'BMediaNode' / 'BMediaRoster' framework; as an optimization, "cloned" buffers are used to share memory between clients and the server instead of copying audio samples around.
+
+For that latter one, I remember from my quick pre-involvement survey that Genode has a growing audio system, based on the nice RM (region mapping) system that pervades the OS, as described in the Genode PDF book (i.e. in the part of the book where it describes simple RPC calls with a limited set of arguments, high-volume RPC calls whose payload is large memory buffers shared safely, and payload-less notification signals).
+
+I'm looking forward to working with that -- it should be another area where comparing side by side Haiku's 'clone_buffer()' based code, and Genode's RM system, will make the former look awkward and make the latter look like the ultimate generalization/simplification/refactoring (no disrespect intended to Be/Haiku, you were and remain my primary OS). It might also be a source of inspiration on how to organize our app ports, and future Haiku erzatz "servers" I may have to write in order to complete this haiku-on-genode project.
+
+Community dialog
+----------------
+
+Addressing various things:
+
+Re. [http://genodians.org/nfeske/2019-01-22-conscious-c++ - Genode's Conscious C++ dialect] , fully agree on the need to be rigorous with C++, and that it can be gratifying (though not quite perfect) if so. This reminds me of Dave Haynie's saying, which went along something like this: C++ is like a katana -- in the hands of a rigorous, well trained sensei, it can be a very efficient tool. But if you don't know what you're doing, you can easily cut off an ear!
+
+Regarding optimizations, I like this saying attributed to Donald Knuth: "premature optimization is the root of all evil".
+
+And as to Genode being possibly mastered by one dev, this reminds me of the expression "mind sized": the idea that an architecture/problem/concept can fit in one person's mind if cleaned-up/re-designed/simplified well enough. Those of you who like to refer to St Exupery's definition of "perfection" probably feel the need for software to be "mind sized" indeed.
+
+Note -- I'm known for cranking out sayings, but it's the first time I go so lyrical all at once -- must be the "Genode effect" :-)
+
+More generally I'd say there are two "halves" to coding style: form and substance.
+
+* form being, apparently trivial things like indenting code, variable naming conventions and so on.
+* substance being, things that influence the (dynamic) code generated by GCC, plus (static) safety mechanisms like type checking.
+
+I find my self nodding a lot as I read about substance related observations. They make a lot of sense.
+
+Form-wise though, the coding style is a bit of a barrier to entry. Nothing dramatic -- and it's probably just me, seeing how I cannot tolerate anybody's style but mine '*g*', including the undecypherable (to me) braces location used throughout the code in Haiku. I seem to be making progress in understanding the Genode code regardless, so life is good.
+
+Substance-wise,
+I'll keep an eye out for changing and improving things, including my "Best Practices". Heck, I've already made one change: upon seeing that Genode compiles most code with the '-Werror=effc++' GCC flag, I decided to extend that to my code (and also.... to the 'haiku.lib.so' code, though I'm probably being masochistic here).
+
+It was sobering early in the "discovery" phase (in fact before I even activated the libc port), to realize 'operator new' would not work out of the box... And then grep -R the source to find out "how it was done"... And realize in shock there was little to no 'new' (or 'delete', or 'malloc') to be found in the Genode source at all, most of them being located in libports and in the DDEs (device driver environments)! If you're new to Genode try that out, it's quite something (and see below for a short discussion as to the prospects of this in the future). For years I've tried to favor class-member rather than class-*pointer*-member status for my objects, but that's taking it to another dimension :-)  So on one hand this is constraint.. But on the other hand, given the horror stories all C++ programmers have about the malloc "heap", I expect this contributes very highly to Genode's simplicity and robustness, and increases my confidence in Genode even more (if that was ever needed).
+
+
+
+Ownership as it relates to widgets
+----------------------------------
+
+Finally, this part, which describes two "sides on one coin"...
+
+!  Code that is traditionally expressed as a sequence
+!  of statements is instead expressed as a sequence
+!  of class members. 
+
+...is a good cue for mentionning a potential GUI problem I've witnessed a lot.
+
+On one side of the coin, the above discusses function calls versus declaration of (protected, private ..etc) variables doing a job. On the other side, which I want to dig into, it entails initializing variables _in a certain order_, _right at object construction time_.
+
+That latter part is something of a problem in Haiku. For years I tried to do that kind of in-place, deterministic allocations in my GUI code, especially with 'BMessenger' objects, which are essential for the communication of 'BViews', the  building block for creating Graphical User Interfaces. But there are so many inter-dependancies (e.g. a given 'BMessenger' must be initialized no sooner than xyzt is ready to provide it info it needs, but no later than 'BView' abc which needs to use it) that I usually end up throwing my hands in the air and using pointers with odd life cycle, instead of plain class members with trivial-to-understand, consistent birth and death.
+
+There must be a lesson in there somewhere -- Genode will do well to conceive and preserve a clear and easy widget stack and widget invokation framework. If the rest of Genode is any guide, I expect its future GUI stack to shine.
+
+To rain on the parade a little though, GUIs are quite _dynamic_ things -- when doing "real world" applications it's hard to escape having pointers (widgets allocated on the heap), having head-scratching semantic questions as to who transfers ownership of what to whom. That's because nodes in a GUI tree are extremely different from one application to the next -- heck, even within one given app, at runtime you can have a GUI transform its layout and tree on the fly!
+
+So for whoever designs the GUI toolkit of an operating sytem, one key decision-making point that arises is how to deal with GUI widgets instantiation and tear-down -- calling destructors on objects. A generally accepted "best pratice" seems to be this: whichever (parent) objects calls 'new', should also be the one to call 'delete' on that child object -- i.e. *keep the ownership* simple, don't *transfer* it.
+
+But the "no pointer" rule and the "keep ownership" rule are not applicable to everything, especially with GUI widgets. Regarding pointers, widgets often need to be *dynamic*, so heap allocated: if a BListView contains a thousand BListItem's, you're not going to declare a thousand instances in your class -- instead you'll have a 'for()' loop calling 'operator new' a thousand times. If you build a combo box (pull-down box) with as many menu items as there are partitions on the AHCI hard drive, as Lightning does, you're going to call 'new' for each item, the amount of items is not predictable at compilation time. As to *ownership*, let's illustrate in a very simple way: consider adding children to a user interface component, and deciding whether to make it generic (non-subclassed: use an OS class as-is), versus one that is custom (subclassed in your app, to extend or override its behavior). If the OS SDK makes it mandatory to subclass the parent widget so as to add children to it, then it would mean enforcing the simple ownership rule indeed. However this hinders productivity very much -- app writers like me want to use generic widgets as often as possible, and subclass only for special cases. For instance consider a 'BBox' with several child widgets inside it (a 'BBox' is just a "container" view which draws a groove border around its children, for visual grouping). I typically want to use a 'BBox' object as-is, without subclassing it to add a private variable for its children. Instead BBox provides (as all other 'BViews' do) an 'AddChild()' setter that allows me to populate that part of the user interface dynamically. This implies transfer of ownership of the added children, to the 'BBox', from whoever called "new ChildView". Then the 'BBox' view will be responsible for delete'ing the (now attached to it) child view.
+
+There might be a way out of this, but no easy answer comes to my mind. It quite seems that a GUI toolkit should support ownership transfer in at least some cases.
+
+Once you decide to allow for that paradigm, do you 1) mix and match it with the other paradigm, with the risk of confusion for app developers using your toolkit, or 2) make transferred-ownership the one and only paradim (as done in Haiku), enforced in all cases including simple ones, even if those could have benefited from a different paradigm... The more applications are written for Genode, the more it will feed reflexion on the subject, help make decisions... And the more apps will be broken if the GUI API changes to correct mistakes...
+
+Maybe what is needed is an additional abstraction layer, where GUI developers use an interim "Builder" class that knows how to deal with widget allocation, link them up together, deal with their commo/interaction in an abstract way. Thus, the app writers never allocate GUI objects themselves (in their "core" app code) so the problems are mitigated, and toolkit implementation changes have lesser odds of breaking API compatibility.
+
+Just semi-random "stream of thoughts". Ok I got carried away here. I blame people encouraging me in comments! '*g*'
+
+Let's keep it short for the rest:
+
+Dynamic messages
+----------------
+
+Articles could be written on the subject of what happens when a widget is invoked... Including on what to choose as a starting point paradigm: synchronous callbacks with C functions (or C++ lambdas -- I am still to start using those).. Or asynchronous message passing.
+
+In Haiku for example, each 'BView' is also a 'BHandler', meaning it is able to not only send a BMessage but also receive and process one through its 'virtual void MessageReceived( BMessage * )' hook method.
+
+Thus, the messaging is dynamic too: when a button is clicked ("invoked" in haiku lingo) it means routing a message from one node in the GUI tree to another node. The latter might be an ancestor, or an offspring, or come from the very other end of the tree (if you're a newbie doing a design mistake... Or an experienced GUI dev with no other choice).
+
+Workflow
+--------
+
+Nice to see questions, and converse with the Genode community. I'll probably respond in posts like this here instead of posting on "reddit", as I don't have a reddit account.
+
+Re. John on tools used for the workflow, I use nothing fancy; if there is "innovation" at all, it might be in the simplicity of the setup, built on the nice Genode compile/link/build-image/launch-qemu workflow. It is supplemented with a healthy Terminal and the nice Terminal-Pe integration that exists in Haiku.
+
+For any Haiku user who might follow this trail in the future, here's a few observations...
+
+* in Genode scripts and tools, paths are hardcoded to /usr/bin, for e.g. locating 'tclsh' or 'make'
+* that's solved with a mere one-liner: 'mkdir /usr; cd /usr; ln -s /bin'  (easily recalled in a hurry from bash history with Control-R mk..... ).
+* also Haiku's POSIX support is (unsurprisingly) not as good as Linux's; indeed it returns this error when 'tclsh' uses 'spawn()' to create a sub process:
+
+!  'The system has no more ptys.  Ask your system administrator to create more.'
+
+That latter one impacts some "make" calls and the "run" lines down there.
+
+Workflow wise, this writer's spartan but tries to apply the "work smarter, not harder" maxim as much as possible. Hence this terminal setup:
+
+* the first Terminal tab runs 'make again'
+* the second tab is used for running 'jam' (more on that in the future)
+* the third runs 'make run/tunetracker' -- well actually not quite: due to the above "ptys" error, I have to append the 'qemu...' line, after a semicolon (for unconditionnal execution -- hence gotta be careful as to success/failure of the .iso image preparation).
+
+So my Terminal use  throughout the day boils down to of a lot of <up-arrow>, <enter>.. <shift-right>..<up-arrow>, <enter>. Rinse and repeat.
+
+When GCC reports an error in one of the first two tabs (the ones used for compiling) hitting Command-click on the concerned line brings up Pe ("Programmer's Editor"; yea it's an odd name) at the relevant line and column.
+
+All in all it works well for me, possibly better than with an Integrated Development Environment. There is room for improvement though. Much of this is child's play to developers working with Linux I'm sure.
+
+Commits are made several times per day to a [http://fossil-scm.org - Fossil] repository, to gain the usual Source Control Management benefits, e.g. extensive diffs, ability to revert code to a previous state. It also buys me distributed code redundancy (for Disaster Recovery) almost for free.
+
+More on that SCM in the future, as I'm thinking of writing a little blurb about the influence Genode's tech choices has on me (I became aware of MAID SAFE, Tox ..etc thanks to them) and the possibility, no matter how small, that I might contribute useful tech suggestions in return, in the future :-).
+
+Regarding the actual code, the best would be to make my repo public (maybe that would attract helping hands, or advice/hints ?). But in a nutshell, basically the surface of contact between the Haiku world and the Genode world has been surprisingly small to date: until early this week, the critical coupling basically fit in a single class, hand-crafted of course, called 'CanvasGenode'. It should probably be renamed to something like 'NitpickerWindowFramebuffer' or some such though. Additionally, the drawing primitives in the 'BView' class have been patched to call canvas().FillRect(..) instead of AppServerLink.execute( fillrect..) for instance. BWindow.MoveTo() is simply mapped to a "nitpicker.execute()" four line script, as expected. The kernel primitives were stubbed out.
+
+The coupling surface is being extended at present though, as I'm going to deal with BMessages and they need actual kernel support to be implemented, for inter-process sending of messages ('BMessages' are flattened into a byte buffer which is transferred to e.g. another application via the 'write_port()' / 'read_port()' pair before being "rehydrated" into a 'BMessage' identical to the source one).
+
+Next week will be a "Chronicles" SitRep, if all goes well with that very part of the code.
+
+
