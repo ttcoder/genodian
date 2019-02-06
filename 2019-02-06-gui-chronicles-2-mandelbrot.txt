@@ -1,0 +1,54 @@
+
+    GUI chronicles 2: Mandelbrot
+
+
+
+SitRep
+------
+
+Making slow but steady progress. Still in "learning more than I ever wanted to know about Haiku's internals" territory though, but maybe the next few weeks will transition into a sweet(er) part of the S curve.
+
+Anyway, here's a screenie:
+
+[image 2019-02-06_Mandelbrot 50%]    Looks more crowded. Crowded is good. We like crowded.
+
+Mandelbrot runs. BMessages go around, the BAlert can be dismissed by clicking its button. Menus now open/display more or less well when clicked.
+
+
+
+Community
+---------
+
+Nice to see all the new articles on Genodians. It's probably fair to say that Q.A. was always a frustrating achille's heel for us, so the Q.A. related articles should be of use : I intend to take a page from Genode/Genodians in that area. Our application are GUI driven though, so automating tests might be more challenging. But with help from BView scripting (for generating "input"), and using the simple and efficient Genode::log() / qemu / expect-script mechanism I've discovered when becoming a Genodian (for generating testable "output" and verifying it), we ought to have a shot at doing this.
+
+What's more, [http://genodians.org/ehmry/2019-01-31-flif_capture - Secure screenshots part I] was most accessible to a newcomer like me. When the dust settles for us I should take a stab at integrating capture into my builds; also learned some things by studying the code (got a chuckle or ten by visiting the IT news aggregator from the screenshot too!).
+
+@John:
+!  I'm very curious to see how you handle message passing,
+!  and how much code and/or complexity this layer adds to the library.
+
+Now that messages are actually being sent and received successfully, it's easier to answer that question: 'haiku.lib.so' uses Haiku's userland source code 99% unchanged; and that the replacement for Haiku's kernel is very thin indeed (that will change though).
+
+The possibly biggest change was replacing a targetting mechanism that haiku calls "BView/handler tokens", using a simple binary search to look for the target BView instead: those particular tokens are associated with an component I did _not_ port over to this project, namely the app_server. The switch to in-tree search was a 20-line change in BWindow.cpp, a minor one.
+
+
+So to give a short overview, one could describe the layers involved in messaging like this:
+
+# Genode *host* : primitives like RPC calling or 'Genode::Semaphore' or signal handlers are not even used yet (!). I'm starting to have performance issues though (on bare metal, not just qemu) so will look into that shortly. I did start using a 'Timer::Connection', but that's for implementing the '::system_time()' haiku syscall, not for message passing.
+
+# emulation of Haiku's *kernelland* -- currently implemented in a file called "rump_kernel.cpp", though I've probably got the terminology wrong (should be named "mini_kernel" or some such): this is implemented as simply as can be, so far. For instance, the message passing related 'write_port()' and friends just use an _std::map<port_id, PortFifo>_ STL structure: you look up a port by ID, which gives you its FIFO. Then you append (or pop) buffers from the FIFO. It has an odd eerie feeling, implementing a minimal haiku kernel with such simplicity, and see it come to life. Feels like cheating. Probably because it is -- this should be overhauled as soon as possible.
+
+# Haiku's *userland* kits -- class BMessage, BMessenger et alia: apart from the "token" thing, changed very little. There's a surprising amount of code though, private classes implementing support for the public kit API, global variables, and so on. It feels like Genode could implement a subset of the features, at least as efficient, with a much smaller and cleaner code base.
+
+# Haiku *applications* -- including the simpliest test case, a 'BAlert' dialog box: they're starting to work as expected. Hovering BMessages are sent when the mouse hovers the window, a 'B_MOUSE_DOWN' BMessage is sent when clicking the "Okay" button, the button then 'Invoke()s', which makes it send its own specialized BMessage, which goes through the layers described above: the message is flattened, write_port()ed (let's not mention the special sending cases for the moment), the port queue (an STL std::map) gets appended with that byte buffer. Then it all goes in reverse for reading the message, and landing in a 'MessageReceived()' hook which finally quits the dialog window. A lot of trouble for quitting a window, eh? Very flexible mechanism though.
+
+
+I'm not sure how BMessage compares to Genode and its SDK. A few months down the road when I've grown less ignorant of Genode I might e.g. find out that Genode's RPC calls (the RPC flavor that uses an RM for transmitting big data) might benefit from encouraging use of a "structured container" (like BMessage) instead of leaving it up to each app to use its own format... And then you might find me harping on that in community discussions! I do remember reading about the recommendation for applications to try to re-use existing interfaces rather than invent new ones; but nothing about a generic container for message passing. Still have much (most?) to learn.
+
+As I'm wrapping this up, just saw Norman's answer [https://www.reddit.com/r/genode/comments/akopy4/gui_basics_2_ipc/ - over here] about e.g. the 'Reconstructible' pattern. That rings a bell, I've run into this one, grepping the source for ideas on handling framebuffer resizing (for implementing 'BWindow::ResizeTo()'). That's some more food-for-thought to digest. Will get to it eventually!
+
+That's all for today.
+
+'til next time.
+
+
