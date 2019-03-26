@@ -1,0 +1,54 @@
+
+    HoG 19.0, bounties
+
+
+
+A few lines of news about HoG, and crossing fingers for wind in the bounties sails.
+
+
+
+
+HoG and CC6
+-----------
+
+The past week of HoG (haiku on genode) development felt good as I tagged my repository as "release" and created an .iso image numbered "2019.0" with a CC-ish build on it. There wasn't all that much to write home about, but with CommandCenter showing its settings window (surprisingly well rendered) and its main window (not quite as good, but I know what to do), it was time to do proof-of-concept testing: check whether it boots up the same for my head honcho as it does for me, function-test audio, input and so on. So just like that, I sent him the ISO. Now awaiting response(s) (at first, it seems hardware compatibility is an issue, resulting in boot failure of the USB stick).
+
+To celebrate that milestone, I then posted to the Haiku forum. It was a [https://discuss.haiku-os.org/t/genode-and-haiku/8384 - bust] though. So getting paid help is starting to look good. Talking of which:
+
+
+Bounties marketplace
+--------------------
+
+In response to [https://lists.genode.org/pipermail/users/2019-March/006685.html - Emery], yes I'd read that list and give feedback or "vote" on some entries, if some catch my eye. Genodians are a sophisticated bunch in my eyes, many of their discussions are "above my pay grade", but texts like [https://genode.org/about/challenges - "challenges"] are accessible to me.
+
+On that topic... Let's go wild -- I'll launch my own "bounties". Even if not picked upon, it's still good for archival purposes (meaning I'll revisit my own list later):
+
+1) As a customer
+
+* 1. Help me port my [https://discuss.haiku-os.org/t/nano-wallet-for-haiku/7164 - Nano wallet] to Genode. Seems like a good fit, since IMHO Nano is to BTC as to Genode is to Linux : it does not attempt do everything, but what it does, it does very well.
+
+Tech: Could be a straight port using HoG (haiku-on-genode)... Or could just use my code base as inspiration for writing a Nano client from scratch, using native Genode widgets; probably does not make sense to rewrite it for Qt, I think. If I didn't mention it before, I consider Qt an absolute "must" for Genode and its presence was an important criterion for us to migrate to Genode. At the same time, if we start a "new" app then it's the perfect time to use (or create if it's not there yet, _wink wink_) a native Genode GUI toolkit.
+
+Bounty: this would be be a "warm up" type of project, and fun to boot, so I would pay only a symbolic bounty.. The idea being that it's a fun project, and that you'd contribute to the project as a whole (by elaborating a native GUI toolkit e.g.) which deserves 'pro bono' treatment :-)
+
+* 2. Hardware consultancy -- I'm in need of testing for my 2019.0 HoG .iso image on a varied set of hardware, to understand why it won't boot for some.
+
+* 3. Software consultancy
+
+Tech: my Genode skills are still.... the word I want to use is "lame" (maybe "low speed, high drag" is more charitable?) -- when working hands on (by opposed to understanding the abstract "white paper" style documentation, which I seem to have mostly assimilated and love). In most cases I'm like an elephant in a china shop. Thus it would make sense that I hire help for setting up .run files, improving/optimizing the existing HoG code base and so on.
+
+Bounty: this would go from two-digit to three-digit bounties, depending on the tasks, and whether I can enlist my head honcho to contribute to the "dev fund".
+
+* 4. Port qTox or maybe another tox clients: the second one listed on [https://tox.chat/clients.html - this page] boasts of "minimal dependencies", including Qt. Genode-world already has the "server" (node) port. Maybe the client is in (easy) reach for Genode?
+
+
+
+2) As a developer
+
+I probably don't measure up to be able to code for Genode for bounties at this point... So I'll be a bounty "maker" rather than "taker" for now.
+
+
+As to method of payment, I'm probably wildly the ideologue outlier here, but I think I'd attempt to use exclusively NANO (instead of USD/EUR) for everything. We'd rely on the "honor system" (thus A publicly promises to pay, then B starts working, and expects A to be true to its word, on delivery; multiple interim milestones/deliverables would probably make sense). However I understand a funds escrow system is a "must" when big money sums are in play up-front.
+
+
+
